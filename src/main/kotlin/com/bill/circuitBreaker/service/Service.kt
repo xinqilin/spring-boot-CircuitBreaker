@@ -37,4 +37,8 @@ interface Service {
     fun futureFailure(): CompletableFuture<String>
 
     fun futureTimeout(): CompletableFuture<String>
+
+    fun rateLimitedCall(): String
+
+    fun monoRateLimited(): Mono<String>
 }

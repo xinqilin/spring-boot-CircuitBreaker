@@ -10,7 +10,7 @@ management.endpoint.health.show-details: always
 
 management.health.diskspace.enabled: false
 management.health.circuitbreakers.enabled: true
-management.health.ratelimiters.enabled: false
+management.health.ratelimiters.enabled: true
 
 info:
   name: ${spring.application.name}
@@ -21,8 +21,6 @@ info:
 management.metrics.tags.application: ${spring.application.name}
 management.metrics.distribution.percentiles-histogram.http.server.requests: true
 management.metrics.distribution.percentiles-histogram.resilience4j.circuitbreaker.calls: true
-
-#resilience4j.circuitbreaker.metrics.use_legacy_binder: true
 
 resilience4j.circuitbreaker:
   configs:
@@ -46,9 +44,9 @@ resilience4j.circuitbreaker:
       failureRateThreshold: 50
       eventConsumerBufferSize: 10
   instances:
-    backendA:
+    basic:
       baseConfig: default
-    backendB:
+    functional:
       registerHealthIndicator: true
       slidingWindowSize: 10
       minimumNumberOfCalls: 10
@@ -57,6 +55,7 @@ resilience4j.circuitbreaker:
       failureRateThreshold: 50
       eventConsumerBufferSize: 10
       recordFailurePredicate: com.bill.circuitBreaker.exception.RecordFailurePredicate
+
 resilience4j.retry:
   configs:
     default:
@@ -67,18 +66,19 @@ resilience4j.retry:
         - java.util.concurrent.TimeoutException
         - java.io.IOException
   instances:
-    backendA:
+    basic:
       baseConfig: default
-    backendB:
+    functional:
       baseConfig: default
+
 resilience4j.bulkhead:
   configs:
     default:
       maxConcurrentCalls: 100
   instances:
-    backendA:
+    basic:
       maxConcurrentCalls: 10
-    backendB:
+    functional:
       maxWaitDuration: 10ms
       maxConcurrentCalls: 20
 
@@ -89,9 +89,9 @@ resilience4j.thread-pool-bulkhead:
       coreThreadPoolSize: 2
       queueCapacity: 2
   instances:
-    backendA:
+    basic:
       baseConfig: default
-    backendB:
+    functional:
       maxThreadPoolSize: 1
       coreThreadPoolSize: 1
       queueCapacity: 1
@@ -99,15 +99,15 @@ resilience4j.thread-pool-bulkhead:
 resilience4j.ratelimiter:
   configs:
     default:
-      registerHealthIndicator: false
+      registerHealthIndicator: true
       limitForPeriod: 10
       limitRefreshPeriod: 1s
       timeoutDuration: 0
       eventConsumerBufferSize: 100
   instances:
-    backendA:
+    basic:
       baseConfig: default
-    backendB:
+    functional:
       limitForPeriod: 6
       limitRefreshPeriod: 500ms
       timeoutDuration: 3s
@@ -118,7 +118,7 @@ resilience4j.timelimiter:
       cancelRunningFuture: false
       timeoutDuration: 2s
   instances:
-    backendA:
+    basic:
       baseConfig: default
-    backendB:
+    functional:
       baseConfig: default

@@ -2,7 +2,6 @@ package com.bill.circuitBreaker.service.impl
 
 import com.bill.circuitBreaker.exception.BusinessException
 import com.bill.circuitBreaker.service.Service
-import io.github.resilience4j.bulkhead.annotation.Bulkhead
 import io.vavr.control.Try
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
@@ -41,7 +40,6 @@ class FunctionalService : Service {
         throw BusinessException("This exception is ignored by the CircuitBreaker of backend functional")
     }
 
-    @Bulkhead(name = "FUNCTIONAL")
     override fun fluxFailure(): Flux<String> {
         return Flux.error(IOException("BAM!"))
     }
@@ -93,5 +91,13 @@ class FunctionalService : Service {
 
     private fun fallback(ex: Throwable): String {
         return "Recovered: $ex"
+    }
+
+    override fun rateLimitedCall(): String {
+        return "Hello World from rate-limited backend functional"
+    }
+
+    override fun monoRateLimited(): Mono<String> {
+        return Mono.just("Hello World from rate-limited backend functional")
     }
 }

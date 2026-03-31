@@ -6,6 +6,8 @@ import io.github.resilience4j.bulkhead.BulkheadFullException
 import io.github.resilience4j.bulkhead.annotation.Bulkhead
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker
+import io.github.resilience4j.ratelimiter.RequestNotPermitted
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter
 import io.github.resilience4j.retry.annotation.Retry
 import io.github.resilience4j.timelimiter.annotation.TimeLimiter
 import io.vavr.control.Try
@@ -158,5 +160,25 @@ class BasicService : Service {
 
     private fun fluxFallback(ex: Exception): Flux<String> {
         return Flux.just("Recovered: $ex")
+    }
+
+    @RateLimiter(name = BASIC, fallbackMethod = "rateLimitFallback")
+    @CircuitBreaker(name = BASIC)
+    override fun rateLimitedCall(): String {
+        return "Hello World from rate-limited backend basic"
+    }
+
+    @RateLimiter(name = BASIC, fallbackMethod = "monoRateLimitFallback")
+    @CircuitBreaker(name = BASIC)
+    override fun monoRateLimited(): Mono<String> {
+        return Mono.just("Hello World from rate-limited backend basic")
+    }
+
+    private fun rateLimitFallback(ex: RequestNotPermitted): String {
+        return "Rate limit exceeded: ${ex.message}"
+    }
+
+    private fun monoRateLimitFallback(ex: RequestNotPermitted): Mono<String> {
+        return Mono.just("Rate limit exceeded: ${ex.message}")
     }
 }

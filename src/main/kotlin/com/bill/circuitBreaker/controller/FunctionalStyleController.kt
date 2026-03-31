@@ -8,8 +8,10 @@ import io.github.resilience4j.circuitbreaker.CallNotPermittedException
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry
 import io.github.resilience4j.decorators.Decorators
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry
+import io.github.resilience4j.ratelimiter.RequestNotPermitted
 import io.github.resilience4j.reactor.bulkhead.operator.BulkheadOperator
 import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator
+import io.github.resilience4j.reactor.ratelimiter.operator.RateLimiterOperator
 import io.github.resilience4j.reactor.retry.RetryOperator
 import io.github.resilience4j.reactor.timelimiter.TimeLimiterOperator
 import io.github.resilience4j.retry.RetryRegistry
@@ -32,7 +34,7 @@ import java.util.function.Supplier
 @RestController
 @RequestMapping(value = ["/functional"])
 class FunctionalStyleController(
-    @Qualifier("functionalService")
+    @param:Qualifier("functionalService")
     private val businessBService: Service,
     circuitBreakerRegistry: CircuitBreakerRegistry,
     threadPoolBulkheadRegistry: ThreadPoolBulkheadRegistry,
@@ -88,7 +90,7 @@ class FunctionalStyleController(
 
     @GetMapping("fluxSuccess")
     fun fluxSuccess(): Flux<String> {
-        return execute(businessBService.fluxFailure())
+        return execute(businessBService.fluxSuccess())
     }
 
     @GetMapping("fluxFailure")
@@ -126,30 +128,48 @@ class FunctionalStyleController(
         return businessBService.failureWithFallback()
     }
 
+    @GetMapping("rateLimited")
+    fun rateLimited(): String {
+        return Decorators.ofSupplier { businessBService.rateLimitedCall() }
+            .withRateLimiter(rateLimiter)
+            .withCircuitBreaker(circuitBreaker)
+            .withBulkhead(bulkhead)
+            .withFallback(listOf(RequestNotPermitted::class.java), this::fallback)
+            .get()
+    }
+
+    @GetMapping("monoRateLimited")
+    fun monoRateLimited(): Mono<String> {
+        return businessBService.monoRateLimited()
+            .transform(RateLimiterOperator.of(rateLimiter))
+            .transform(CircuitBreakerOperator.of(circuitBreaker))
+            .transform(BulkheadOperator.of(bulkhead))
+    }
+
     private fun timeout(): String {
         try {
             Thread.sleep(10000)
         } catch (e: InterruptedException) {
-            e.printStackTrace()
+            Thread.currentThread().interrupt()
         }
         return ""
     }
 
-    private fun <T> execute(publisher: Mono<T>): Mono<T> {
+    private fun <T : Any> execute(publisher: Mono<T>): Mono<T> {
         return publisher
             .transform(BulkheadOperator.of(bulkhead))
             .transform(CircuitBreakerOperator.of(circuitBreaker))
             .transform(RetryOperator.of(retry))
     }
 
-    private fun <T> execute(publisher: Flux<T>): Flux<T> {
+    private fun <T : Any> execute(publisher: Flux<T>): Flux<T> {
         return publisher
             .transform(BulkheadOperator.of(bulkhead))
             .transform(CircuitBreakerOperator.of(circuitBreaker))
             .transform(RetryOperator.of(retry))
     }
 
-    private fun <T> executeWithFallback(publisher: Mono<T>, fallback: (Throwable) -> Mono<T>): Mono<T> {
+    private fun <T : Any> executeWithFallback(publisher: Mono<T>, fallback: (Throwable) -> Mono<T>): Mono<T> {
         return publisher
             .transform(TimeLimiterOperator.of(timeLimiter))
             .transform(BulkheadOperator.of(bulkhead))
@@ -159,7 +179,7 @@ class FunctionalStyleController(
             .onErrorResume(BulkheadFullException::class.java, fallback)
     }
 
-    private fun <T> executeWithFallback(publisher: Flux<T>, fallback: (Throwable) -> Flux<T>): Flux<T> {
+    private fun <T : Any> executeWithFallback(publisher: Flux<T>, fallback: (Throwable) -> Flux<T>): Flux<T> {
         return publisher
             .transform(TimeLimiterOperator.of(timeLimiter))
             .transform(BulkheadOperator.of(bulkhead))

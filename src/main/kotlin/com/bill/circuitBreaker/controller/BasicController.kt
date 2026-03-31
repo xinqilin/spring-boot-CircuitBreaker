@@ -16,7 +16,7 @@ import java.util.concurrent.CompletableFuture
 @RestController
 @RequestMapping(value = ["/basic"])
 class BasicController(
-    @Qualifier("basicService")
+    @param:Qualifier("basicService")
     private val basicService: Service
 ) {
 
@@ -88,5 +88,15 @@ class BasicController(
     @GetMapping("fallback")
     fun failureWithFallback(): String {
         return basicService.failureWithFallback()
+    }
+
+    @GetMapping("rateLimited")
+    fun rateLimited(): String {
+        return basicService.rateLimitedCall()
+    }
+
+    @GetMapping("monoRateLimited")
+    fun monoRateLimited(): Mono<String> {
+        return basicService.monoRateLimited()
     }
 }

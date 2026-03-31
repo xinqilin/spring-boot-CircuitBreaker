@@ -39,7 +39,7 @@ class ApplicationConfig {
     @Bean
     fun testCustomizer(): CircuitBreakerConfigCustomizer {
         return CircuitBreakerConfigCustomizer
-            .of("backendA") { builder: CircuitBreakerConfig.Builder ->
+            .of("basic") { builder: CircuitBreakerConfig.Builder ->
                 builder.slidingWindowSize(
                     100
                 )
