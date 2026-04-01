@@ -451,6 +451,237 @@ class RecordFailurePredicate : Predicate<Throwable> {
 
 ---
 
+## Quick Apply Guide
+
+How to add Resilience4j to your own Spring Boot project in minutes.
+
+### 1. Dependencies
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    implementation("org.springframework.boot:spring-boot-starter-aspectj") // required for annotation mode
+    implementation("io.github.resilience4j:resilience4j-spring-boot4:2.4.0")
+    implementation("io.github.resilience4j:resilience4j-reactor:2.4.0")    // only if using Mono/Flux
+}
+```
+
+> For Spring Boot 3.x, replace `spring-boot-starter-aspectj` with `spring-boot-starter-aop`
+> and use `resilience4j-spring-boot3` instead.
+
+### 2. Minimal YAML Config
+
+Copy this as a starting point and tune the numbers for your use case:
+
+```yaml
+resilience4j.circuitbreaker:
+  instances:
+    myService:
+      slidingWindowSize: 10
+      minimumNumberOfCalls: 5
+      failureRateThreshold: 50
+      waitDurationInOpenState: 10s
+      permittedNumberOfCallsInHalfOpenState: 3
+      automaticTransitionFromOpenToHalfOpenEnabled: true
+      registerHealthIndicator: true
+      recordExceptions:
+        - org.springframework.web.client.HttpServerErrorException
+        - java.util.concurrent.TimeoutException
+        - java.io.IOException
+
+resilience4j.retry:
+  instances:
+    myService:
+      maxAttempts: 3
+      waitDuration: 200ms
+      retryExceptions:
+        - org.springframework.web.client.HttpServerErrorException
+        - java.util.concurrent.TimeoutException
+        - java.io.IOException
+
+resilience4j.bulkhead:
+  instances:
+    myService:
+      maxConcurrentCalls: 20
+      maxWaitDuration: 10ms
+
+resilience4j.timelimiter:
+  instances:
+    myService:
+      timeoutDuration: 3s
+
+resilience4j.ratelimiter:
+  instances:
+    myService:
+      limitForPeriod: 20
+      limitRefreshPeriod: 1s
+      timeoutDuration: 0
+      registerHealthIndicator: true
+
+# Expose health indicators
+management.health.circuitbreakers.enabled: true
+management.health.ratelimiters.enabled: true
+management.endpoint.health.show-details: always
+```
+
+### 3. Annotation Mode — Copy-Paste Starters
+
+All annotations use the same `name` value to look up the YAML config. Mix and match as needed.
+
+**Circuit Breaker with fallback:**
+
+```kotlin
+@CircuitBreaker(name = "myService", fallbackMethod = "fallback")
+fun callRemoteService(): String {
+    // your HTTP call, DB query, etc.
+}
+
+// Fallback signature must match the original method's return type
+// Add one overload per exception type you want to handle specifically
+private fun fallback(ex: HttpServerErrorException): String = "Service unavailable: ${ex.message}"
+private fun fallback(ex: Exception): String = "Service unavailable"
+```
+
+**Circuit Breaker + Retry + Bulkhead (common combination):**
+
+```kotlin
+@CircuitBreaker(name = "myService")
+@Retry(name = "myService")
+@Bulkhead(name = "myService")
+fun callRemoteService(): String { ... }
+```
+
+**With timeout (requires CompletableFuture or Mono/Flux return type):**
+
+```kotlin
+// CompletableFuture
+@Bulkhead(name = "myService", type = Bulkhead.Type.THREADPOOL)
+@TimeLimiter(name = "myService")
+@CircuitBreaker(name = "myService", fallbackMethod = "fallback")
+fun callRemoteService(): CompletableFuture<String> {
+    return CompletableFuture.supplyAsync { /* your call */ }
+}
+
+private fun fallback(ex: TimeoutException): CompletableFuture<String> =
+    CompletableFuture.completedFuture("Timed out")
+
+// Mono (WebFlux)
+@TimeLimiter(name = "myService")
+@CircuitBreaker(name = "myService", fallbackMethod = "fallback")
+fun callRemoteService(): Mono<String> {
+    return webClient.get().retrieve().bodyToMono(String::class.java)
+}
+
+private fun fallback(ex: Exception): Mono<String> = Mono.just("Timed out")
+```
+
+**Rate Limiter:**
+
+```kotlin
+@RateLimiter(name = "myService", fallbackMethod = "rateLimitFallback")
+fun callRemoteService(): String { ... }
+
+private fun rateLimitFallback(ex: RequestNotPermitted): String = "Too many requests, try again later"
+```
+
+### 4. Functional API — Copy-Paste Starters
+
+Use this when you need dynamic decoration (e.g., conditional retry) or want the chain explicit in code.
+
+```kotlin
+@Component
+class MyServiceClient(
+    circuitBreakerRegistry: CircuitBreakerRegistry,
+    retryRegistry: RetryRegistry,
+    bulkheadRegistry: BulkheadRegistry,
+) {
+    private val circuitBreaker = circuitBreakerRegistry.circuitBreaker("myService")
+    private val retry = retryRegistry.retry("myService")
+    private val bulkhead = bulkheadRegistry.bulkhead("myService")
+
+    fun callRemoteService(): String {
+        return Decorators.ofSupplier { /* your call */ }
+            .withCircuitBreaker(circuitBreaker)
+            .withBulkhead(bulkhead)
+            .withRetry(retry)
+            .withFallback(listOf(Exception::class.java)) { ex -> "Recovered: ${ex.message}" }
+            .get()
+    }
+
+    // Mono variant
+    fun callRemoteServiceReactive(): Mono<String> {
+        return Mono.fromSupplier { /* your call */ }
+            .transform(BulkheadOperator.of(bulkhead))
+            .transform(CircuitBreakerOperator.of(circuitBreaker))
+            .transform(RetryOperator.of(retry))
+            .onErrorResume(CallNotPermittedException::class.java) { Mono.just("Circuit open") }
+    }
+}
+```
+
+### 5. Annotation Ordering Rules
+
+The annotation execution order is **outermost first** (the annotation listed first in source code is outermost in the AOP proxy stack):
+
+```kotlin
+// This order:
+@CircuitBreaker(name = "x")   // outermost — executed first
+@Retry(name = "x")            // middle
+@Bulkhead(name = "x")         // innermost — executed last (closest to actual call)
+fun myMethod(): String { ... }
+```
+
+Recommended order for most cases:
+
+```
+@CircuitBreaker → @Bulkhead → @TimeLimiter → @Retry → @RateLimiter → actual call
+```
+
+**Why it matters:**
+- `@Retry` inside `@CircuitBreaker` → each retry attempt counts toward the circuit breaker's failure window. One logical operation can trigger multiple failure records.
+- `@Retry` outside `@CircuitBreaker` → if the circuit opens mid-retry, the retry itself is interrupted. Cleaner for most cases.
+
+### 6. Fallback Method Rules
+
+| Rule | Example |
+|---|---|
+| Same return type as original | `fun callX(): String` → `fun fallback(ex: Exception): String` |
+| For `Mono`, fallback must return `Mono` | `fun fallback(ex: Exception): Mono<String>` |
+| For `CompletableFuture`, fallback must return `CompletableFuture` | `fun fallback(ex: Exception): CompletableFuture<String>` |
+| Multiple overloads — more specific type wins | `fallback(ex: TimeoutException)` beats `fallback(ex: Exception)` |
+| Must be in the same class | AOP proxy cannot reach a different bean's method |
+| Private visibility is fine | `private fun fallback(...)` works for annotation-based fallbacks |
+
+### 7. Common Gotchas
+
+**`@Transactional` + `@CircuitBreaker` on the same method:**
+Both use AOP proxies. Place them on separate layers — `@Transactional` on the repository/service, `@CircuitBreaker` on the caller.
+
+**Self-invocation doesn't work:**
+Calling an annotated method from within the same class bypasses the AOP proxy. Extract the annotated method to a separate Spring bean.
+
+```kotlin
+// BROKEN — self-invocation
+class MyService {
+    fun doWork() {
+        callRemote()  // AOP proxy bypassed, @CircuitBreaker has no effect
+    }
+
+    @CircuitBreaker(name = "x")
+    fun callRemote(): String { ... }
+}
+
+// CORRECT — inject the bean or split into separate components
+```
+
+**`@TimeLimiter` only works with async return types:**
+`@TimeLimiter` has no effect on methods returning `String`, `void`, etc. It requires `CompletableFuture<T>`, `Mono<T>`, or `Flux<T>`.
+
+**Instance name typo = silent default config:**
+If the `name` in the annotation doesn't match any YAML `instances` entry, Resilience4j silently uses the `default` config without any warning. Always verify with `/actuator/health`.
+
+---
+
 ## Endpoint Reference
 
 All endpoints respond to `GET`. Both `/basic/*` and `/functional/*` expose the same paths.
