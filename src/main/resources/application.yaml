@@ -55,6 +55,25 @@ resilience4j.circuitbreaker:
       failureRateThreshold: 50
       eventConsumerBufferSize: 10
       recordFailurePredicate: com.bill.circuitBreaker.exception.RecordFailurePredicate
+    webClient:
+      baseConfig: default
+    restClient:
+      baseConfig: default
+    coroutine:
+      baseConfig: default
+    test:
+      registerHealthIndicator: false
+      slidingWindowSize: 5
+      minimumNumberOfCalls: 5
+      failureRateThreshold: 60
+      waitDurationInOpenState: 10s
+      automaticTransitionFromOpenToHalfOpenEnabled: false
+      permittedNumberOfCallsInHalfOpenState: 2
+      eventConsumerBufferSize: 10
+      recordExceptions:
+        - org.springframework.web.client.HttpServerErrorException
+        - java.util.concurrent.TimeoutException
+        - java.io.IOException
 
 resilience4j.retry:
   configs:
@@ -70,6 +89,12 @@ resilience4j.retry:
       baseConfig: default
     functional:
       baseConfig: default
+    webClient:
+      baseConfig: default
+    restClient:
+      baseConfig: default
+    coroutine:
+      baseConfig: default
 
 resilience4j.bulkhead:
   configs:
@@ -81,6 +106,12 @@ resilience4j.bulkhead:
     functional:
       maxWaitDuration: 10ms
       maxConcurrentCalls: 20
+    webClient:
+      baseConfig: default
+    restClient:
+      baseConfig: default
+    coroutine:
+      baseConfig: default
 
 resilience4j.thread-pool-bulkhead:
   configs:
@@ -121,4 +152,10 @@ resilience4j.timelimiter:
     basic:
       baseConfig: default
     functional:
+      baseConfig: default
+    webClient:
+      baseConfig: default
+    restClient:
+      baseConfig: default
+    coroutine:
       baseConfig: default

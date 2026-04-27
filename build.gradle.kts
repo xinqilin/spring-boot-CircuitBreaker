@@ -32,6 +32,7 @@ dependencies {
     implementation("io.github.resilience4j:resilience4j-spring-boot4:2.4.0")
     implementation("io.github.resilience4j:resilience4j-all:2.4.0")
     implementation("io.github.resilience4j:resilience4j-reactor:2.4.0")
+    implementation("io.github.resilience4j:resilience4j-kotlin:2.4.0")
     implementation("io.micrometer:micrometer-registry-prometheus")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")

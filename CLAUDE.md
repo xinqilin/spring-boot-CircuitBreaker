@@ -32,6 +32,8 @@ This is a demonstration project comparing two approaches to Resilience4j integra
 
 Both expose **16 endpoints each** — the intent is to show both styles side-by-side with identical behaviour.
 
+`example/*` packages contain a separate layer of real-world recipe code: `example/webclient` (Kotlin `WebClient` + Java `RestClient`), `example/coroutine` (Kotlin `suspend fun` with `executeSuspendFunction`). These demonstrate applied patterns rather than dual-style comparison. Tests under `test/kotlin/example/` and `test/java/example/` target the `test` CB instance (not `basic`/`functional`).
+
 ### Resilience Patterns in Use
 
 All 5 patterns are fully active:
@@ -51,8 +53,16 @@ All 5 patterns are fully active:
 
 - Instance names: `basic` (annotation approach) / `functional` (programmatic approach)
 - `ApplicationConfig` registers event consumers logging all circuit breaker state transitions and retry events
-- `FunctionalStyleController` manually injects all registry beans and builds decorator chains; also declares `RateLimiterOperator` for reactive pipelines
+- `FunctionalStyleController` resolves all Resilience4j instances from registries **at constructor injection time** (not per-request), then builds decorator chains per endpoint
 - `FunctionalService` uses Vavr `Try.ofSupplier()` in `failureWithFallback()` as a non-Resilience4j fallback approach
+- `functional` instance uses `RecordFailurePredicate` (excludes `BusinessException`); `basic` instance uses explicit `recordExceptions` list in YAML
+
+### Non-obvious Gotchas
+
+- **`testCustomizer()` overrides YAML**: `ApplicationConfig.testCustomizer()` sets `slidingWindowSize = 100` for the `basic` circuit breaker via `CircuitBreakerConfigCustomizer`. The YAML shows `slidingWindowSize: 10` but code-level customizer wins — reading YAML alone is misleading.
+- **Annotation AOP nesting order**: On `BasicService` methods, annotations closest to the method are innermost in the proxy chain. Standard order: `@Bulkhead` (inner) → `@Retry` → `@CircuitBreaker` → `@TimeLimiter` (outer). The outermost decorator is the first to intercept.
+- **Reactor `transform()` order**: In `FunctionalStyleController.execute(Mono/Flux)`, operators wrap from bottom up — the last `.transform()` call is outermost. So `RetryOperator` is outermost, `BulkheadOperator` is closest to the publisher.
+- **Fallback method overloading**: Annotation-based fallbacks in `BasicService` use method overloading (`fallback(ex: HttpServerErrorException)` vs `fallback(ex: Exception)`). Resilience4j picks the most specific matching exception type.
 
 ### Endpoints per controller (16 each)
 
