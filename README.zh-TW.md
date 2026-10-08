@@ -63,7 +63,7 @@ com.bill.circuitBreaker/
 ├── config/
 │   └── ApplicationConfig.kt          # 客製化設定 + Registry 事件消費者
 └── exception/
-    ├── BusinessException.kt           # 被 Circuit Breaker 忽略的例外
+    ├── BusinessException.kt           # 不被 Circuit Breaker 記為失敗的例外
     └── RecordFailurePredicate.kt      # 'functional' 實例的自訂失敗判斷邏輯
 ```
 
@@ -76,7 +76,7 @@ com.bill.circuitBreaker/
 
 ### 實例設定
 
-`application.yaml` 定義了兩個具名實例：`basic`（注解式）和 `functional`（函式式）。`functional` 實例使用自訂的 `RecordFailurePredicate`，將 `BusinessException` 排除在失敗記錄之外。
+`application.yaml` 定義了兩個具名實例：`basic`（注解式）和 `functional`（函式式）。`functional` 實例使用自訂的 `RecordFailurePredicate`，不把 `BusinessException` 與 4xx 記為失敗 — 與 `basic` 透過 `recordExceptions` 清單得到的結果相同。
 
 ---
 
@@ -433,19 +433,20 @@ Try.ofSupplier(::failure)
 
 ## 失敗分類
 
-斷路器區分「記錄」與「忽略」的例外：
+兩個實例的分類結果相同，只是機制不同（`basic`：`recordExceptions` 清單；`functional`：`RecordFailurePredicate`）：
 
 | 分類 | 範例 | 效果 |
 |---|---|---|
 | **記錄**（計入失敗） | `HttpServerErrorException`、`TimeoutException`、`IOException` | 增加滑動視窗的失敗計數 |
-| **忽略**（透明通過） | `HttpClientErrorException`（4xx）、`BusinessException` | 不影響斷路器狀態，直接往上拋出 |
-| **自訂 Predicate**（`functional` 實例） | 透過 `RecordFailurePredicate` | 將 `BusinessException` 明確排除在失敗記錄之外 |
+| **不記錄**（計為成功） | `HttpClientErrorException`（4xx）、`BusinessException` | 例外照樣往上拋給呼叫端；這次呼叫以「成功」計入滑動視窗 |
+
+注意與 `ignoreExceptions` 的差別：被 *ignore* 的例外完全不計入，而「不記錄」的例外會計為成功。兩個實例都沒有使用 `ignoreExceptions`。
 
 ```kotlin
 // RecordFailurePredicate.kt — 由 'functional' 斷路器實例使用
 class RecordFailurePredicate : Predicate<Throwable> {
     override fun test(t: Throwable): Boolean =
-        t !is BusinessException  // 忽略 BusinessException，其餘都記錄為失敗
+        t !is BusinessException && t !is HttpClientErrorException  // 其餘都記錄為失敗
 }
 ```
 
@@ -1017,8 +1018,8 @@ rate(resilience4j_ratelimiter_available_permissions_total[1m]) < 0
 |---|---|---|
 | `success` | CB + Bulkhead + Retry | 回傳成功回應 |
 | `failure` | CB + Bulkhead + Retry | 永遠拋出 `HttpServerErrorException` |
-| `successException` | CB + Bulkhead | 拋出 `HttpClientErrorException`（4xx，被 CB 忽略） |
-| `ignore` | CB + Bulkhead | 拋出 `BusinessException`（被 CB 忽略） |
+| `successException` | CB + Bulkhead | 拋出 `HttpClientErrorException`（4xx，CB 計為成功） |
+| `ignore` | CB + Bulkhead | 拋出 `BusinessException`（CB 計為成功） |
 | `fallback` | CB with fallback | 呼叫 `failure()` 後透過 fallback method 恢復 |
 | `monoSuccess` | CB + Bulkhead + Retry + TimeLimiter | 響應式成功（`Mono`） |
 | `monoFailure` | CB + Bulkhead + Retry | 響應式失敗（`IOException`） |

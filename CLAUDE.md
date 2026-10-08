@@ -31,7 +31,7 @@ This is a demonstration project comparing two approaches to Resilience4j integra
 | Annotation-based | `BasicController` (`/basic/*`) | `BasicService` | `@CircuitBreaker`, `@Retry`, `@Bulkhead`, `@TimeLimiter`, `@RateLimiter` |
 | Functional API | `FunctionalStyleController` (`/functional/*`) | `FunctionalService` | `Decorators.ofSupplier().withCircuitBreaker()…decorate()` + Reactor operators |
 
-Both expose **16 endpoints each** to show both styles side-by-side. Behaviour is *not* fully identical — see Failure Classification.
+Both expose **16 endpoints each** to show both styles side-by-side with identical behaviour. `ResilienceEndpointsTest` runs the same scenarios against both prefixes (path prefix = instance name) — extend it when changing either side.
 
 `example/*` packages contain a separate layer of real-world recipe code: `example/webclient` (Kotlin `WebClient` + Java `RestClient`), `example/coroutine` (Kotlin `suspend fun` with `executeSuspendFunction`), each with its own CB instance (`webClient` / `restClient` / `coroutine`). The WebClient/RestClient examples call this app's own `/basic/*` at `localhost:8080` (`HttpClientsConfig`), so they only work while the app is running.
 
@@ -50,13 +50,10 @@ All 5 patterns are fully active:
 
 ### Failure Classification
 
-| Exception | `basic` (`recordExceptions` list) | `functional` (`RecordFailurePredicate`) |
-|---|---|---|
-| `HttpServerErrorException`, `TimeoutException`, `IOException` | failure | failure |
-| `BusinessException` | counted as **success** | counted as **success** |
-| `HttpClientErrorException` (4xx) | counted as **success** | **failure** (predicate only excludes `BusinessException`) |
+Same outcome, different mechanism — `basic`: `recordExceptions` list in YAML; `functional`: `RecordFailurePredicate`. Keep the two in sync.
 
-"Counted as success" still enters the sliding window; nothing here uses `ignoreExceptions` (which would skip counting entirely).
+- `HttpServerErrorException`, `TimeoutException`, `IOException` — recorded as **failure**
+- `HttpClientErrorException` (4xx), `BusinessException` — counted as **success** (still in the sliding window; nothing here uses `ignoreExceptions`, which would skip counting entirely)
 
 ### Key Config
 
@@ -69,8 +66,9 @@ All 5 patterns are fully active:
 
 - **`testCustomizer()` overrides YAML**: `ApplicationConfig.testCustomizer()` sets `slidingWindowSize = 100` for the `basic` circuit breaker via `CircuitBreakerConfigCustomizer`. The YAML shows `slidingWindowSize: 10` but code-level customizer wins — reading YAML alone is misleading.
 - **Annotation AOP order is fixed, not source order**: Resilience4j applies aspects as `Retry(CircuitBreaker(RateLimiter(TimeLimiter(Bulkhead(fn)))))` regardless of how annotations are listed; only `resilience4j.*.*AspectOrder` properties change it (none set here). Consequence: Retry wraps CB, so one `/basic/failure` call records 3 CB failures.
-- **Self-invocation in `BasicService.failureWithFallback()`**: it calls `this.failure()`, bypassing the proxy — `failure()`'s `@Retry`/`@Bulkhead`/`@CircuitBreaker` do not apply on that path; only `failureWithFallback()`'s own `@CircuitBreaker` does.
-- **`redirectRoot()` is likely inert**: it is a WebFlux `RouterFunction`, but the app runs as Spring MVC (see Tech Stack), so `GET /` is probably not redirected to `/actuator`.
+- **Self-invocation**: an annotated `BasicService` method calling another annotated method on `this` bypasses the proxy — throw/call directly instead (see `failureWithFallback()`).
+- **Use servlet functional APIs**: the app runs as Spring MVC, so `RouterFunction` beans must come from `org.springframework.web.servlet.function`, not `web.reactive.function` (a reactive one is silently ignored).
+- **MockMvc wraps controller exceptions** in `ServletException` — assert with `hasRootCauseInstanceOf`, not `isInstanceOf`.
 - **Reactor `transform()` order**: In `FunctionalStyleController.execute(Mono/Flux)`, operators wrap from bottom up — the last `.transform()` call is outermost. So `RetryOperator` is outermost, `BulkheadOperator` is closest to the publisher.
 - **Fallback method overloading**: Annotation-based fallbacks in `BasicService` use method overloading (`fallback(ex: HttpServerErrorException)` vs `fallback(ex: Exception)`). Resilience4j picks the most specific matching exception type.
 

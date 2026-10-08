@@ -105,7 +105,8 @@ class BasicService : Service {
 
     @CircuitBreaker(name = BASIC, fallbackMethod = "fallback")
     override fun failureWithFallback(): String {
-        return failure()
+        // Throw directly: calling failure() here would be self-invocation, which bypasses its AOP annotations
+        throw HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR, "This is a remote exception")
     }
 
     @Bulkhead(name = BASIC, type = Bulkhead.Type.THREADPOOL)

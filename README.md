@@ -63,7 +63,7 @@ com.bill.circuitBreaker/
 ├── config/
 │   └── ApplicationConfig.kt          # customizer + registry event consumers
 └── exception/
-    ├── BusinessException.kt           # exception ignored by circuit breaker
+    ├── BusinessException.kt           # exception not recorded as a circuit breaker failure
     └── RecordFailurePredicate.kt      # custom failure predicate for 'functional' instance
 ```
 
@@ -76,7 +76,7 @@ com.bill.circuitBreaker/
 
 ### Instance Configuration
 
-Two named instances — `basic` (used by annotation approach) and `functional` (used by programmatic approach) — are defined in `application.yaml`. The `functional` instance uses a custom `RecordFailurePredicate` that ignores `BusinessException`.
+Two named instances — `basic` (used by annotation approach) and `functional` (used by programmatic approach) — are defined in `application.yaml`. The `functional` instance uses a custom `RecordFailurePredicate` that does not record `BusinessException` or 4xx as failures — the same outcome `basic` gets from its `recordExceptions` list.
 
 ---
 
@@ -433,19 +433,20 @@ Try.ofSupplier(::failure)
 
 ## Failure Classification
 
-The circuit breaker differentiates between recorded and ignored exceptions:
+Both instances classify exceptions the same way, by different mechanisms (`basic`: `recordExceptions` list; `functional`: `RecordFailurePredicate`):
 
 | Category | Examples | Effect |
 |---|---|---|
 | **Recorded** (counts as failure) | `HttpServerErrorException`, `TimeoutException`, `IOException` | Increments failure count in sliding window |
-| **Ignored** (transparent) | `HttpClientErrorException` (4xx), `BusinessException` | Passes through without affecting circuit state |
-| **Custom predicate** (`functional` instance) | Via `RecordFailurePredicate` | `BusinessException` excluded from recording |
+| **Not recorded** (counts as success) | `HttpClientErrorException` (4xx), `BusinessException` | Exception still propagates to the caller; the call enters the sliding window as a success |
+
+Note the difference from `ignoreExceptions`: an *ignored* exception is not counted at all, while an exception that is merely not recorded is counted as a success. Neither instance uses `ignoreExceptions`.
 
 ```kotlin
 // RecordFailurePredicate.kt — used by the 'functional' circuit breaker instance
 class RecordFailurePredicate : Predicate<Throwable> {
     override fun test(t: Throwable): Boolean =
-        t !is BusinessException  // ignore BusinessException, record everything else
+        t !is BusinessException && t !is HttpClientErrorException  // record everything else
 }
 ```
 
@@ -1009,8 +1010,8 @@ All endpoints respond to `GET`. Both `/basic/*` and `/functional/*` expose the s
 |---|---|---|
 | `success` | CB + Bulkhead + Retry | Returns success response |
 | `failure` | CB + Bulkhead + Retry | Always throws `HttpServerErrorException` |
-| `successException` | CB + Bulkhead | Throws `HttpClientErrorException` (4xx — ignored by CB) |
-| `ignore` | CB + Bulkhead | Throws `BusinessException` (ignored by CB) |
+| `successException` | CB + Bulkhead | Throws `HttpClientErrorException` (4xx — counted as success by CB) |
+| `ignore` | CB + Bulkhead | Throws `BusinessException` (counted as success by CB) |
 | `fallback` | CB with fallback | Calls `failure()` then recovers via fallback method |
 | `monoSuccess` | CB + Bulkhead + Retry + TimeLimiter | Reactive success (`Mono`) |
 | `monoFailure` | CB + Bulkhead + Retry | Reactive failure (`IOException`) |
