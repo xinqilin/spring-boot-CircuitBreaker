@@ -81,7 +81,7 @@ curl localhost:8080/functional/monoTimeout
 
 ## 技術棧
 
-Java 21 · Kotlin 2.3.21 · Spring Boot 4.1.1 · Resilience4j 2.4.0 · Project Reactor · Micrometer + Prometheus · Gradle 9.4.1
+Java 21 · Kotlin 2.3.21 · Spring Boot 4.1.1 · Resilience4j 2.4.0 · Project Reactor · Micrometer + Prometheus · Gradle 9.8.1
 
 ## 授權
 

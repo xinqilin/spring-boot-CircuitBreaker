@@ -20,7 +20,7 @@ docker compose up -d     # Prometheus :9090 + Grafana :3000, scraping /actuator/
 - **Resilience:** Resilience4j 2.4.0 (`resilience4j-spring-boot4`, `-reactor`, `-kotlin`)
 - **Web:** both `starter-webmvc` and `starter-webflux` (WebFlux is kept for `WebClient`) are on the classpath, so the app runs as **Spring MVC (servlet)**; Reactor `Mono`/`Flux` are used as return types
 - **Metrics:** Micrometer + Prometheus (exposed at `/actuator/prometheus`)
-- **Build:** Gradle 9.4.1
+- **Build:** Gradle 9.8.1
 
 ## Architecture
 
