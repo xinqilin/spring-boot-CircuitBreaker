@@ -90,12 +90,15 @@ resilience4j.timelimiter:
 Start the monitoring stack with Docker:
 
 ```bash
-docker-compose up -d
+./gradlew bootRun     # the app runs on the host at :8080
+docker compose up -d
 ```
 
 This starts:
-- **Prometheus** at http://localhost:9090 — scrapes `/actuator/prometheus` every 5s
-- **Grafana** at http://localhost:3000 — default credentials: `admin` / `admin`
+- **Prometheus** at http://localhost:9090 — scrapes the app at `host.docker.internal:8080/actuator/prometheus` every 5s; check http://localhost:9090/targets shows the `circuitbreaker` job as `UP`
+- **Grafana** at http://localhost:3000 — default credentials: `admin` / `admin`; the Prometheus datasource is provisioned automatically (`docker/grafana/provisioning`)
+
+The stack uses normal bridge networking (no `network_mode: host`), so it works the same on Docker Desktop, OrbStack and Linux.
 
 ### Key Metrics
 

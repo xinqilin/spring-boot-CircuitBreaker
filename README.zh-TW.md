@@ -47,7 +47,7 @@ flowchart LR
 ```bash
 ./gradlew build      # 編譯並執行所有測試
 ./gradlew bootRun    # 啟動於 http://localhost:8080
-docker-compose up -d # 選用：Prometheus :9090 + Grafana :3000
+docker compose up -d # 選用：Prometheus :9090 + Grafana :3000
 ```
 
 ### 60 秒導覽

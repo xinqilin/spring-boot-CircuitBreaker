@@ -25,5 +25,6 @@ scrape_configs:
 
     metrics_path: /actuator/prometheus
 
+    # The app runs on the host (./gradlew bootRun), outside the compose network
     static_configs:
-      - targets: [ 'localhost:8080' ]
+      - targets: [ 'host.docker.internal:8080' ]

@@ -90,12 +90,15 @@ resilience4j.timelimiter:
 使用 Docker 啟動監控堆疊：
 
 ```bash
-docker-compose up -d
+./gradlew bootRun     # 應用程式在本機 :8080 執行
+docker compose up -d
 ```
 
 包含：
-- **Prometheus**：http://localhost:9090 — 每 5 秒抓取 `/actuator/prometheus`
-- **Grafana**：http://localhost:3000 — 預設帳密：`admin` / `admin`
+- **Prometheus**：http://localhost:9090 — 每 5 秒抓取 `host.docker.internal:8080/actuator/prometheus`；可到 http://localhost:9090/targets 確認 `circuitbreaker` job 為 `UP`
+- **Grafana**：http://localhost:3000 — 預設帳密：`admin` / `admin`；Prometheus datasource 已自動設定（`docker/grafana/provisioning`）
+
+堆疊使用一般的 bridge 網路（沒有 `network_mode: host`），在 Docker Desktop、OrbStack 與 Linux 上行為一致。
 
 ### 關鍵指標
 

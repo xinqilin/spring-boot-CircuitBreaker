@@ -47,7 +47,7 @@ Requires Java 21.
 ```bash
 ./gradlew build      # compile + run all tests
 ./gradlew bootRun    # start on http://localhost:8080
-docker-compose up -d # optional: Prometheus :9090 + Grafana :3000
+docker compose up -d # optional: Prometheus :9090 + Grafana :3000
 ```
 
 ### 60-second tour

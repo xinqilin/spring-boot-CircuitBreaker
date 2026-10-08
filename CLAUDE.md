@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./gradlew test           # run all tests
 ./gradlew test --tests "com.bill.circuitBreaker.example.StateTransitionKotlinTest"  # single test class
 ./gradlew clean build    # clean rebuild
-docker-compose up -d     # Prometheus :9090 + Grafana :3000, scraping /actuator/prometheus on :8080
+docker compose up -d     # Prometheus :9090 + Grafana :3000, scraping /actuator/prometheus on :8080
 ```
 
 ## Tech Stack

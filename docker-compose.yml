@@ -1,14 +1,22 @@
-version: '3'
 services:
   prometheus:
-    image: prom/prometheus
+    image: prom/prometheus:v3.15.0
     container_name: prometheus
-    network_mode: "host"
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      # Docker Desktop and OrbStack resolve host.docker.internal natively; this makes it work on Linux too
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml
   grafana:
-    image: grafana/grafana
+    image: grafana/grafana:13.2.3
     container_name: grafana
-    network_mode: "host"
+    ports:
+      - "3000:3000"
     env_file:
       - ./docker/grafana.env
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
