@@ -37,7 +37,7 @@ Both expose **16 endpoints each** to show both styles side-by-side with identica
 
 Tests are all `@SpringBootTest`. Tests under `test/kotlin/example/` and `test/java/example/` share the `test` CB instance (not `basic`/`functional`) and call `reset()` in `@BeforeEach` — keep that when adding tests.
 
-`README.md` and `README.zh-TW.md` mirror each other; update both together.
+`README.md` ↔ `README.zh-TW.md` and `docs/*.md` ↔ `docs/*.zh-TW.md` mirror each other; update both languages together. README claims under "What this repo shows" are each backed by a test in `ResilienceEndpointsTest`.
 
 ### Resilience Patterns in Use
 

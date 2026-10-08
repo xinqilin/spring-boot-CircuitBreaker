@@ -104,6 +104,28 @@ class ResilienceEndpointsTest {
         assertThat(cb("basic").state).isEqualTo(CircuitBreaker.State.OPEN)
     }
 
+    // Every /basic/* endpoint shares the 'basic' instance: an OPEN circuit also blocks unrelated endpoints.
+    // CircuitBreaker wraps RateLimiter, so the RequestNotPermitted fallback never gets a chance to run.
+    @Test
+    fun `OPEN basic circuit also rejects the rate-limited endpoint sharing the instance`() {
+        cb("basic").transitionToOpenState()
+
+        assertThat(mvc.get().uri("/basic/rateLimited"))
+            .hasFailed()
+            .failure().hasRootCauseInstanceOf(CallNotPermittedException::class.java)
+    }
+
+    // futureFallback is overloaded for TimeoutException / BulkheadFullException / CallNotPermittedException;
+    // the most specific match wins.
+    @Test
+    fun `overloaded fallback picks the most specific exception type`() {
+        cb("basic").transitionToOpenState()
+
+        assertThat(mvc.get().uri("/basic/futureTimeout"))
+            .hasStatusOk()
+            .bodyText().startsWith("Recovered specific CallNotPermittedException")
+    }
+
     // basic: 10 permits per 1s with timeoutDuration=0, so a burst beyond the limit is rejected at once.
     @Test
     fun `basic rate limiter returns fallback when the burst exceeds the limit`() {
