@@ -19,6 +19,7 @@ Behaviours that are easy to get wrong, each pinned down by a test in [`Resilienc
 - **4xx and business exceptions are counted as success, not ignored.** They still fill the sliding window; only `ignoreExceptions` skips counting. Annotations (`recordExceptions`) and the functional style (`RecordFailurePredicate`) reach the same result by different mechanisms.
 - **One circuit breaker instance per downstream.** Every `/basic/*` endpoint shares the `basic` instance, so once `/basic/failure` opens it, `/basic/rateLimited` is rejected too.
 - **Fallbacks are type-matched.** Overloaded fallback methods pick the most specific exception type (`TimeoutException` vs `CallNotPermittedException` vs `Exception`).
+- **Spring Framework 7 now has `@Retryable` and `@ConcurrencyLimit` built in.** [`SpringCoreVsResilience4jTest`](src/test/kotlin/com/bill/circuitBreaker/example/SpringCoreVsResilience4jTest.kt) compares them with Resilience4j under a burst of virtual threads — BLOCK throttles, REJECT and `@Bulkhead` fail fast. See [when to use which](docs/quick-apply.md#12-spring-framework-7-core-resilience-vs-resilience4j).
 
 Also included: recipes for Kotlin `WebClient`, Java `RestClient` and Kotlin coroutines (`example/*`), and state-transition tests in both Kotlin and Java.
 
@@ -74,7 +75,7 @@ curl localhost:8080/functional/monoTimeout
 | Document | Contents |
 |---|---|
 | [Patterns in depth](docs/patterns.md) | Each pattern with config, code from both styles, fallback strategies, failure classification |
-| [Quick Apply Guide](docs/quick-apply.md) | Copy-paste starters for your own project, ordering and fallback rules, WebClient / RestClient / coroutine integration, state-transition testing, production tuning and PromQL alerts |
+| [Quick Apply Guide](docs/quick-apply.md) | Copy-paste starters for your own project, ordering and fallback rules, WebClient / RestClient / coroutine integration, state-transition testing, production tuning and PromQL alerts, Spring Framework 7 core resilience vs Resilience4j |
 | [Reference](docs/reference.md) | All endpoints, full configuration, metrics and actuator health |
 
 ## Tech Stack

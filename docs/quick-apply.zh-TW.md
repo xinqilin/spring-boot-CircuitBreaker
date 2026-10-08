@@ -555,3 +555,43 @@ rate(resilience4j_ratelimiter_available_permissions_total[1m]) < 0
 | WebClient 呼叫未被記錄為失敗 | `WebClientResponseException` ≠ `HttpServerErrorException`，需在 Service 層加 `.onStatus()` mapping |
 | Coroutine 測試不穩定 | `automaticTransitionFromOpenToHalfOpenEnabled: true` 導致非同步狀態轉換，在 test instance 關閉此選項 |
 | Fallback 方法找不到 | 回傳型別不符？參數不是 `Throwable` 或其子類？方法在不同 class？ |
+
+## 12. Spring Framework 7 內建 Resilience vs Resilience4j
+
+Spring Framework 7（隨 Spring Boot 4 推出）在核心框架加入了 `@Retryable` 與 `@ConcurrencyLimit`。它們**不會被自動設定** —— 需要在 `@Configuration` class 加上 `@EnableResilientMethods`。程式碼：[`example/springcore`](../src/main/kotlin/com/bill/circuitBreaker/example/springcore/)，測試：[`SpringCoreVsResilience4jTest`](../src/test/kotlin/com/bill/circuitBreaker/example/SpringCoreVsResilience4jTest.kt)。
+
+| 需求 | Spring Framework 7 內建 | Resilience4j |
+|---|---|---|
+| 重試 | `@Retryable(includes, maxRetries, delay, jitter, multiplier, maxDelay)`；也能裝飾 `Mono` / `Flux` | `@Retry` + YAML 實例、`RetryOperator` |
+| 併發上限 | `@ConcurrencyLimit(limit, policy = BLOCK \| REJECT)` | `@Bulkhead`（semaphore 搭配 `maxWaitDuration`，或 thread pool） |
+| 斷路器 / 限流 / 逾時 | 無 | `@CircuitBreaker`、`@RateLimiter`、`@TimeLimiter` |
+| Fallback | 無 —— 需自行 catch 例外 | `fallbackMethod`、`Decorators.withFallback` |
+| 設定方式 | annotation 屬性（`*String` 版本支援 placeholder） | 具名 YAML 實例，可共用 base config |
+| 可觀測性 | `MethodRetryEvent` application event | Micrometer 指標、actuator 健康指標、事件消費者 |
+
+```kotlin
+@Retryable(includes = [IOException::class], maxRetries = 2, delay = 100) // 總共 3 次嘗試
+@Throws(IOException::class) // Kotlin：少了它，CGLIB proxy 會把 checked exception 包成 UndeclaredThrowableException
+fun alwaysFails(): String
+
+@ConcurrencyLimit(limit = 2, policy = ConcurrencyLimit.ThrottlePolicy.REJECT)
+fun limitedReject(): String // 超出上限的呼叫拿到 InvocationRejectedException
+```
+
+**Virtual threads：** 開啟 `spring.threads.virtual.enabled=true` 後，不再有 request thread pool 充當隱性的併發上限，下游可能被大量請求淹沒。測試以 virtual threads 同時發出 20 個呼叫，上限為 2：
+
+| 機制 | 超出上限的呼叫 | 最高併發數 |
+|---|---|---|
+| `@ConcurrencyLimit`（BLOCK，預設） | 等待 —— 20 個全部成功 | 2 |
+| `@ConcurrencyLimit(policy = REJECT)` | `InvocationRejectedException` | ≤ 2 |
+| Resilience4j `@Bulkhead`（`maxWaitDuration: 0`） | `BulkheadFullException` | ≤ 2 |
+
+搭配 virtual threads 時，優先用 semaphore bulkhead 而非 `ThreadPoolBulkhead`：thread-pool bulkhead 會把工作搬回 platform thread 執行。
+
+**選 Spring 內建**：只需要重試或併發上限，且不想多一個依賴。**選 Resilience4j**：需要斷路器、限流、fallback、指標/健康檢查，或集中管理的設定。
+
+```bash
+curl localhost:8080/example/spring-core/retry
+seq 1 6 | xargs -P 6 -I{} sh -c 'echo "$(curl -s localhost:8080/example/spring-core/concurrency-reject)"'
+seq 1 6 | xargs -P 6 -I{} sh -c 'echo "$(curl -s localhost:8080/example/spring-core/bulkhead)"'
+```

@@ -19,6 +19,7 @@
 - **4xx 與業務例外會計為成功，而不是被忽略。** 它們仍會填入滑動視窗；只有 `ignoreExceptions` 才會完全不計。注解式（`recordExceptions`）與函式式（`RecordFailurePredicate`）以不同機制得到相同結果。
 - **每個下游服務各用一個斷路器實例。** 所有 `/basic/*` 端點共用 `basic` 實例，所以 `/basic/failure` 讓它開路後，`/basic/rateLimited` 也會一起被拒絕。
 - **Fallback 依例外型別匹配。** 多載的 fallback 方法會選擇最精確的例外型別（`TimeoutException` / `CallNotPermittedException` / `Exception`）。
+- **Spring Framework 7 已內建 `@Retryable` 與 `@ConcurrencyLimit`。** [`SpringCoreVsResilience4jTest`](src/test/kotlin/com/bill/circuitBreaker/example/SpringCoreVsResilience4jTest.kt) 以大量 virtual threads 同時呼叫，與 Resilience4j 對照 —— BLOCK 會排隊等待，REJECT 與 `@Bulkhead` 則立即拒絕。參見[該選哪一個](docs/quick-apply.zh-TW.md#12-spring-framework-7-內建-resilience-vs-resilience4j)。
 
 另外包含：Kotlin `WebClient`、Java `RestClient` 與 Kotlin coroutine 的整合範例（`example/*`），以及 Kotlin、Java 兩版的狀態轉換測試。
 
@@ -74,7 +75,7 @@ curl localhost:8080/functional/monoTimeout
 | 文件 | 內容 |
 |---|---|
 | [模式詳解](docs/patterns.zh-TW.md) | 各模式的設定、兩種風格的程式碼、fallback 策略、失敗分類 |
-| [快速套用指南](docs/quick-apply.zh-TW.md) | 套用到自己專案的起手式、執行順序與 fallback 規則、WebClient / RestClient / coroutine 整合、狀態轉換測試、生產環境調校與 PromQL 告警 |
+| [快速套用指南](docs/quick-apply.zh-TW.md) | 套用到自己專案的起手式、執行順序與 fallback 規則、WebClient / RestClient / coroutine 整合、狀態轉換測試、生產環境調校與 PromQL 告警、Spring Framework 7 內建 resilience 與 Resilience4j 比較 |
 | [參考資料](docs/reference.zh-TW.md) | 所有端點、完整設定、指標與 Actuator 健康端點 |
 
 ## 技術棧

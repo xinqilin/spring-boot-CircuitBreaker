@@ -33,7 +33,7 @@ This is a demonstration project comparing two approaches to Resilience4j integra
 
 Both expose **16 endpoints each** to show both styles side-by-side with identical behaviour. `ResilienceEndpointsTest` runs the same scenarios against both prefixes (path prefix = instance name) — extend it when changing either side.
 
-`example/*` packages contain a separate layer of real-world recipe code: `example/webclient` (Kotlin `WebClient` + Java `RestClient`), `example/coroutine` (Kotlin `suspend fun` with `executeSuspendFunction`), each with its own CB instance (`webClient` / `restClient` / `coroutine`). The WebClient/RestClient examples call this app's own `/basic/*` at `localhost:8080` (`HttpClientsConfig`), so they only work while the app is running.
+`example/*` packages contain a separate layer of real-world recipe code: `example/webclient` (Kotlin `WebClient` + Java `RestClient`), `example/coroutine` (Kotlin `suspend fun` with `executeSuspendFunction`), each with its own CB instance (`webClient` / `restClient` / `coroutine`); `example/springcore` compares Spring Framework 7 `@Retryable` / `@ConcurrencyLimit` (enabled via `@EnableResilientMethods` in `SpringCoreResilienceConfig` — Boot does not auto-configure it) with Resilience4j `@Bulkhead` (`springCore` instance). The WebClient/RestClient examples call this app's own `/basic/*` at `localhost:8080` (`HttpClientsConfig`), so they only work while the app is running.
 
 Tests are all `@SpringBootTest`. Tests under `test/kotlin/example/` and `test/java/example/` share the `test` CB instance (not `basic`/`functional`) and call `reset()` in `@BeforeEach` — keep that when adding tests.
 

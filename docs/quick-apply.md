@@ -547,3 +547,43 @@ Metric names (Prometheus / Micrometer):
 | WebClient calls not recorded as failures | `WebClientResponseException` is NOT `HttpServerErrorException` — add `.onStatus()` mapping in your service |
 | Coroutine test is flaky | `automaticTransitionFromOpenToHalfOpenEnabled: true` causes asynchronous OPEN→HALF_OPEN transition — disable in test instance |
 | Fallback method not found | Return type mismatch? Parameter type not `Throwable` or subclass? Method in different class? |
+
+## 12. Spring Framework 7 Core Resilience vs Resilience4j
+
+Spring Framework 7 (shipped with Spring Boot 4) adds `@Retryable` and `@ConcurrencyLimit` to the core framework. They are **not auto-configured** — add `@EnableResilientMethods` to a `@Configuration` class. Code: [`example/springcore`](../src/main/kotlin/com/bill/circuitBreaker/example/springcore/), tests: [`SpringCoreVsResilience4jTest`](../src/test/kotlin/com/bill/circuitBreaker/example/SpringCoreVsResilience4jTest.kt).
+
+| Need | Spring Framework 7 core | Resilience4j |
+|---|---|---|
+| Retry | `@Retryable(includes, maxRetries, delay, jitter, multiplier, maxDelay)`; also decorates `Mono` / `Flux` | `@Retry` + YAML instance, `RetryOperator` |
+| Concurrency cap | `@ConcurrencyLimit(limit, policy = BLOCK \| REJECT)` | `@Bulkhead` (semaphore with `maxWaitDuration`, or thread pool) |
+| Circuit breaker / rate limiter / time limiter | none | `@CircuitBreaker`, `@RateLimiter`, `@TimeLimiter` |
+| Fallback | none — catch the exception yourself | `fallbackMethod`, `Decorators.withFallback` |
+| Configuration | annotation attributes (`*String` variants accept placeholders) | named YAML instances with shared base configs |
+| Observability | `MethodRetryEvent` application events | Micrometer metrics, actuator health indicators, event consumers |
+
+```kotlin
+@Retryable(includes = [IOException::class], maxRetries = 2, delay = 100) // 3 attempts in total
+@Throws(IOException::class) // Kotlin: otherwise the CGLIB proxy wraps the checked exception
+fun alwaysFails(): String
+
+@ConcurrencyLimit(limit = 2, policy = ConcurrencyLimit.ThrottlePolicy.REJECT)
+fun limitedReject(): String // excess callers get InvocationRejectedException
+```
+
+**Virtual threads:** with `spring.threads.virtual.enabled=true` there is no request thread pool acting as an implicit concurrency cap, so a downstream can be flooded. The test fires 20 simultaneous calls on virtual threads against a limit of 2:
+
+| Mechanism | Excess callers | Peak concurrency |
+|---|---|---|
+| `@ConcurrencyLimit` (BLOCK, default) | wait — all 20 succeed | 2 |
+| `@ConcurrencyLimit(policy = REJECT)` | `InvocationRejectedException` | ≤ 2 |
+| Resilience4j `@Bulkhead` (`maxWaitDuration: 0`) | `BulkheadFullException` | ≤ 2 |
+
+Prefer the semaphore bulkhead over `ThreadPoolBulkhead` with virtual threads: a thread-pool bulkhead moves the work back onto platform threads.
+
+**Choose Spring core** when you only need retry or a concurrency cap and want no extra dependency. **Choose Resilience4j** when you need a circuit breaker, rate limiting, fallbacks, metrics/health, or centrally managed configuration.
+
+```bash
+curl localhost:8080/example/spring-core/retry
+seq 1 6 | xargs -P 6 -I{} sh -c 'echo "$(curl -s localhost:8080/example/spring-core/concurrency-reject)"'
+seq 1 6 | xargs -P 6 -I{} sh -c 'echo "$(curl -s localhost:8080/example/spring-core/bulkhead)"'
+```

@@ -112,6 +112,9 @@ resilience4j.bulkhead:
       baseConfig: default
     coroutine:
       baseConfig: default
+    springCore:
+      maxConcurrentCalls: 2
+      maxWaitDuration: 0
 
 resilience4j.thread-pool-bulkhead:
   configs:
