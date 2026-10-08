@@ -15,10 +15,10 @@ docker-compose up -d     # Prometheus :9090 + Grafana :3000, scraping /actuator/
 
 ## Tech Stack
 
-- **Language:** Kotlin 2.2.20 (plus Java 21 under `src/main/java` / `src/test/java`)
-- **Runtime:** Java 21, Spring Boot 4.0.5
+- **Language:** Kotlin 2.3.21 (plus Java 21 under `src/main/java` / `src/test/java`)
+- **Runtime:** Java 21, Spring Boot 4.1.1
 - **Resilience:** Resilience4j 2.4.0 (`resilience4j-spring-boot4`, `-reactor`, `-kotlin`)
-- **Web:** both `starter-web` and `starter-webflux` are on the classpath, so the app runs as **Spring MVC (servlet)**; Reactor `Mono`/`Flux` are used as return types
+- **Web:** both `starter-webmvc` and `starter-webflux` (WebFlux is kept for `WebClient`) are on the classpath, so the app runs as **Spring MVC (servlet)**; Reactor `Mono`/`Flux` are used as return types
 - **Metrics:** Micrometer + Prometheus (exposed at `/actuator/prometheus`)
 - **Build:** Gradle 9.4.1
 

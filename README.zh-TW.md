@@ -13,8 +13,8 @@
 
 ## 技術棧
 
-- **Java 21** / **Kotlin 2.2.20**
-- **Spring Boot 4.0.5**
+- **Java 21** / **Kotlin 2.3.21**
+- **Spring Boot 4.1.1**
 - **Gradle 9.4.1**
 - **Resilience4j 2.4.0**
 - **Project Reactor**（Mono / Flux / CompletableFuture）
