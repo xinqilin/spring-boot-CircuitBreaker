@@ -22,8 +22,8 @@ All endpoints respond to `GET`. Both `/basic/*` and `/functional/*` expose the s
 | `futureSuccess` | CB + Retry + TimeLimiter + ThreadPool Bulkhead | Async success |
 | `futureFailure` | CB + Retry + TimeLimiter + ThreadPool Bulkhead | Async failure |
 | `futureTimeout` | CB (fallback) + TimeLimiter + ThreadPool Bulkhead | Async timeout |
-| `rateLimited` | RateLimiter (10/s) + CB + Bulkhead | Rate-limited sync call |
-| `monoRateLimited` | RateLimiter (10/s) + CB + Bulkhead | Rate-limited reactive call |
+| `rateLimited` | RateLimiter (basic 10/s, functional 6/500ms) + CB + Bulkhead | Rate-limited sync call |
+| `monoRateLimited` | RateLimiter (basic 10/s, functional 6/500ms) + CB + Bulkhead | Rate-limited reactive call |
 
 ---
 
@@ -74,7 +74,7 @@ resilience4j.ratelimiter:
     functional:
       limitForPeriod: 6
       limitRefreshPeriod: 500ms
-      timeoutDuration: 3s              # wait up to 3s for a permit
+      timeoutDuration: 0               # reject at once, like basic
 
 resilience4j.timelimiter:
   configs:

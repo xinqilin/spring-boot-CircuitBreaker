@@ -1,6 +1,8 @@
 package com.bill.circuitBreaker.exception
 
-import org.springframework.web.client.HttpClientErrorException
+import org.springframework.web.client.HttpServerErrorException
+import java.io.IOException
+import java.util.concurrent.TimeoutException
 import java.util.function.Predicate
 
 /**
@@ -8,8 +10,10 @@ import java.util.function.Predicate
  */
 class RecordFailurePredicate : Predicate<Throwable> {
 
+    // Allow-list mirroring the 'basic' recordExceptions: only downstream failures count.
+    // A deny-list (e.g. "everything except BusinessException") would also record Resilience4j's own
+    // rejections such as RequestNotPermitted, letting rate limiting trip the circuit breaker.
     override fun test(throwable: Throwable): Boolean {
-        // Mirrors the 'basic' recordExceptions list: business errors and 4xx are the caller's fault, not the downstream's
-        return throwable !is BusinessException && throwable !is HttpClientErrorException
+        return throwable is HttpServerErrorException || throwable is TimeoutException || throwable is IOException
     }
 }

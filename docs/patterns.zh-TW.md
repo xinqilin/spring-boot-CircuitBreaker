@@ -225,7 +225,7 @@ curl http://localhost:8080/functional/fluxTimeout
 
 ## 5. Rate Limiter（速率限制器）
 
-透過每個刷新週期只允許固定數量的呼叫來控制呼叫速率。超出限制的呼叫最多等待 `timeoutDuration`，若仍無法取得許可則拋出 `RequestNotPermitted`。
+透過每個刷新週期只允許固定數量的呼叫來控制呼叫速率。超出限制的呼叫最多等待 `timeoutDuration`，若仍無法取得許可則拋出 `RequestNotPermitted`。兩個實例都設為 `timeoutDuration: 0`（立即拒絕）：在 servlet 應用中，設為正值會讓超量的呼叫在等待期間佔住 request thread。
 
 ```yaml
 resilience4j.ratelimiter.instances.basic:
@@ -235,7 +235,7 @@ resilience4j.ratelimiter.instances.basic:
 resilience4j.ratelimiter.instances.functional:
   limitForPeriod: 6
   limitRefreshPeriod: 500ms
-  timeoutDuration: 3s        # 最多等待 3s 取得許可
+  timeoutDuration: 0         # 同樣立即拒絕，只有額度不同
 ```
 
 **注解式：**
@@ -256,7 +256,7 @@ Decorators.ofSupplier { service.rateLimitedCall() }
     .withRateLimiter(rateLimiter)
     .withCircuitBreaker(circuitBreaker)
     .withBulkhead(bulkhead)
-    .withFallback(listOf(RequestNotPermitted::class.java), ::fallback)
+    .withFallback(listOf(RequestNotPermitted::class.java), ::rateLimitFallback)
     .get()
 ```
 
@@ -267,6 +267,7 @@ service.monoRateLimited()
     .transform(RateLimiterOperator.of(rateLimiter))
     .transform(CircuitBreakerOperator.of(circuitBreaker))
     .transform(BulkheadOperator.of(bulkhead))
+    .onErrorResume(RequestNotPermitted::class.java) { ex -> Mono.just(rateLimitFallback(ex)) }
 ```
 
 **實際測試（觸發速率限制）：**
@@ -366,6 +367,7 @@ Try.ofSupplier(::failure)
 // RecordFailurePredicate.kt — 由 'functional' 斷路器實例使用
 class RecordFailurePredicate : Predicate<Throwable> {
     override fun test(t: Throwable): Boolean =
-        t !is BusinessException && t !is HttpClientErrorException  // 其餘都記錄為失敗
+        // 白名單：若用黑名單，Resilience4j 自己的 RequestNotPermitted 也會被記為失敗
+        t is HttpServerErrorException || t is TimeoutException || t is IOException
 }
 ```

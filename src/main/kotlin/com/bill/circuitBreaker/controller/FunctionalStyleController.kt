@@ -134,7 +134,7 @@ class FunctionalStyleController(
             .withRateLimiter(rateLimiter)
             .withCircuitBreaker(circuitBreaker)
             .withBulkhead(bulkhead)
-            .withFallback(listOf(RequestNotPermitted::class.java), this::fallback)
+            .withFallback(listOf(RequestNotPermitted::class.java), this::rateLimitFallback)
             .get()
     }
 
@@ -144,6 +144,7 @@ class FunctionalStyleController(
             .transform(RateLimiterOperator.of(rateLimiter))
             .transform(CircuitBreakerOperator.of(circuitBreaker))
             .transform(BulkheadOperator.of(bulkhead))
+            .onErrorResume(RequestNotPermitted::class.java) { ex -> Mono.just(rateLimitFallback(ex)) }
     }
 
     private fun timeout(): String {
@@ -227,6 +228,10 @@ class FunctionalStyleController(
 
     private fun fallback(ex: Throwable): String {
         return "Recovered: $ex"
+    }
+
+    private fun rateLimitFallback(ex: Throwable): String {
+        return "Rate limit exceeded: ${ex.message}"
     }
 
     private fun monoFallback(ex: Throwable): Mono<String> {

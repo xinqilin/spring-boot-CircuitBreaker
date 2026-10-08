@@ -144,7 +144,7 @@ resilience4j.ratelimiter:
     functional:
       limitForPeriod: 6
       limitRefreshPeriod: 500ms
-      timeoutDuration: 3s
+      timeoutDuration: 0
 
 resilience4j.timelimiter:
   configs:

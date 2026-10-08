@@ -46,11 +46,11 @@ All 5 patterns are fully active:
 - **Retry** — up to 3 attempts, 100ms wait; only on `HttpServerErrorException`, `TimeoutException`, `IOException`
 - **Bulkhead** — semaphore (limits concurrent calls) and thread-pool variants
 - **Time Limiter** — 2s timeout, used with `CompletableFuture` / `Mono` / `Flux`
-- **Rate Limiter** — `basic`: 10/s; `functional`: 6/500ms — both have fallbacks on `RequestNotPermitted`
+- **Rate Limiter** — `basic`: 10/s; `functional`: 6/500ms — both `timeoutDuration: 0` (reject at once) with `RequestNotPermitted` fallbacks on sync and Mono endpoints
 
 ### Failure Classification
 
-Same outcome, different mechanism — `basic`: `recordExceptions` list in YAML; `functional`: `RecordFailurePredicate`. Keep the two in sync.
+Same outcome, different mechanism — `basic`: `recordExceptions` list in YAML; `functional`: `RecordFailurePredicate` (an allow-list of the same three types). Keep the two in sync. Never turn the predicate into a deny-list: it would record Resilience4j's own `RequestNotPermitted` and let rate limiting open the circuit (covered by a test).
 
 - `HttpServerErrorException`, `TimeoutException`, `IOException` — recorded as **failure**
 - `HttpClientErrorException` (4xx), `BusinessException` — counted as **success** (still in the sliding window; nothing here uses `ignoreExceptions`, which would skip counting entirely)

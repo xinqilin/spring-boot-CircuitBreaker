@@ -8,6 +8,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -126,14 +127,18 @@ class ResilienceEndpointsTest {
             .bodyText().startsWith("Recovered specific CallNotPermittedException")
     }
 
-    // basic: 10 permits per 1s with timeoutDuration=0, so a burst beyond the limit is rejected at once.
-    @Test
-    fun `basic rate limiter returns fallback when the burst exceeds the limit`() {
+    // basic: 10 permits/1s, functional: 6 permits/500ms — both with timeoutDuration=0, so a burst beyond
+    // the limit is rejected at once. Rejections are the limiter protecting us, not a downstream failure,
+    // so they must not be recorded by the circuit breaker that wraps the rate limiter.
+    @ParameterizedTest
+    @CsvSource("basic,rateLimited", "basic,monoRateLimited", "functional,rateLimited", "functional,monoRateLimited")
+    fun `burst beyond the rate limit returns fallback without tripping the circuit`(instance: String, endpoint: String) {
         val bodies = (1..25).map {
-            mvc.get().uri("/basic/rateLimited").exchange().response.contentAsString
+            mvc.get().uri("/$instance/$endpoint").exchange().response.contentAsString
         }
 
         assertThat(bodies).anyMatch { it.startsWith("Rate limit exceeded") }
+        assertThat(cb(instance).metrics.numberOfFailedCalls).isZero()
     }
 
     private fun cb(instance: String): CircuitBreaker = circuitBreakerRegistry.circuitBreaker(instance)

@@ -17,6 +17,7 @@
 
 - **注解在原始碼中的書寫順序不影響執行順序。** Spring aspect 永遠以 `Retry(CircuitBreaker(RateLimiter(TimeLimiter(Bulkhead(call)))))` 套用。由於 Retry 包住斷路器，一次失敗請求會記錄 3 次失敗 —— **兩次請求就足以讓 `basic` 斷路器開路**。
 - **4xx 與業務例外會計為成功，而不是被忽略。** 它們仍會填入滑動視窗；只有 `ignoreExceptions` 才會完全不計。注解式（`recordExceptions`）與函式式（`RecordFailurePredicate`）以不同機制得到相同結果。
+- **自己的限流不該讓斷路器開路。** 黑名單式的失敗判斷（「除了 X 以外都記錄」）也會把 Resilience4j 的 `RequestNotPermitted` 記為失敗，一陣突發流量就會讓斷路器開路。因此函式式風格改用白名單。
 - **每個下游服務各用一個斷路器實例。** 所有 `/basic/*` 端點共用 `basic` 實例，所以 `/basic/failure` 讓它開路後，`/basic/rateLimited` 也會一起被拒絕。
 - **Fallback 依例外型別匹配。** 多載的 fallback 方法會選擇最精確的例外型別（`TimeoutException` / `CallNotPermittedException` / `Exception`）。
 - **Spring Framework 7 已內建 `@Retryable` 與 `@ConcurrencyLimit`。** [`SpringCoreVsResilience4jTest`](src/test/kotlin/com/bill/circuitBreaker/example/SpringCoreVsResilience4jTest.kt) 以大量 virtual threads 同時呼叫，與 Resilience4j 對照 —— BLOCK 會排隊等待，REJECT 與 `@Bulkhead` 則立即拒絕。參見[該選哪一個](docs/quick-apply.zh-TW.md#12-spring-framework-7-內建-resilience-vs-resilience4j)。

@@ -22,8 +22,8 @@
 | `futureSuccess` | CB + Retry + TimeLimiter + ThreadPool Bulkhead | 非同步成功 |
 | `futureFailure` | CB + Retry + TimeLimiter + ThreadPool Bulkhead | 非同步失敗 |
 | `futureTimeout` | CB（fallback）+ TimeLimiter + ThreadPool Bulkhead | 非同步 timeout |
-| `rateLimited` | RateLimiter（10/s）+ CB + Bulkhead | 受速率限制的同步呼叫 |
-| `monoRateLimited` | RateLimiter（10/s）+ CB + Bulkhead | 受速率限制的響應式呼叫 |
+| `rateLimited` | RateLimiter（basic 10/s、functional 6/500ms）+ CB + Bulkhead | 受速率限制的同步呼叫 |
+| `monoRateLimited` | RateLimiter（basic 10/s、functional 6/500ms）+ CB + Bulkhead | 受速率限制的響應式呼叫 |
 
 ---
 
@@ -74,7 +74,7 @@ resilience4j.ratelimiter:
     functional:
       limitForPeriod: 6
       limitRefreshPeriod: 500ms
-      timeoutDuration: 3s              # 最多等待 3s 取得許可
+      timeoutDuration: 0               # 與 basic 一樣立即拒絕
 
 resilience4j.timelimiter:
   configs:

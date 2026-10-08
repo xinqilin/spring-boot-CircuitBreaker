@@ -225,7 +225,7 @@ curl http://localhost:8080/functional/fluxTimeout
 
 ## 5. Rate Limiter
 
-Controls the call rate by permitting only a fixed number of calls per refresh period. Excess calls wait up to `timeoutDuration` before a `RequestNotPermitted` exception is thrown.
+Controls the call rate by permitting only a fixed number of calls per refresh period. Excess calls wait up to `timeoutDuration` before a `RequestNotPermitted` exception is thrown. Both instances use `timeoutDuration: 0` (reject at once): in a servlet app a positive value makes excess callers hold a request thread while they wait.
 
 ```yaml
 resilience4j.ratelimiter.instances.basic:
@@ -235,7 +235,7 @@ resilience4j.ratelimiter.instances.basic:
 resilience4j.ratelimiter.instances.functional:
   limitForPeriod: 6
   limitRefreshPeriod: 500ms
-  timeoutDuration: 3s        # wait up to 3s for a permit
+  timeoutDuration: 0         # also rejects at once; only the quota differs
 ```
 
 **Annotation style:**
@@ -256,7 +256,7 @@ Decorators.ofSupplier { service.rateLimitedCall() }
     .withRateLimiter(rateLimiter)
     .withCircuitBreaker(circuitBreaker)
     .withBulkhead(bulkhead)
-    .withFallback(listOf(RequestNotPermitted::class.java), ::fallback)
+    .withFallback(listOf(RequestNotPermitted::class.java), ::rateLimitFallback)
     .get()
 ```
 
@@ -267,6 +267,7 @@ service.monoRateLimited()
     .transform(RateLimiterOperator.of(rateLimiter))
     .transform(CircuitBreakerOperator.of(circuitBreaker))
     .transform(BulkheadOperator.of(bulkhead))
+    .onErrorResume(RequestNotPermitted::class.java) { ex -> Mono.just(rateLimitFallback(ex)) }
 ```
 
 **Try it (trigger rate limit):**
@@ -366,6 +367,7 @@ Note the difference from `ignoreExceptions`: an *ignored* exception is not count
 // RecordFailurePredicate.kt — used by the 'functional' circuit breaker instance
 class RecordFailurePredicate : Predicate<Throwable> {
     override fun test(t: Throwable): Boolean =
-        t !is BusinessException && t !is HttpClientErrorException  // record everything else
+        // Allow-list: a deny-list would also record Resilience4j's own RequestNotPermitted
+        t is HttpServerErrorException || t is TimeoutException || t is IOException
 }
 ```
