@@ -82,3 +82,9 @@ curl localhost:8080/functional/monoTimeout
 ## Tech Stack
 
 Java 21 · Kotlin 2.3.21 · Spring Boot 4.1.1 · Resilience4j 2.4.0 · Project Reactor · Micrometer + Prometheus · Gradle 9.4.1
+
+## License
+
+[Apache License 2.0](LICENSE).
+
+This project started from [resilience4j/resilience4j-spring-boot2-demo](https://github.com/resilience4j/resilience4j-spring-boot2-demo), Copyright 2019 Robert Winkler, licensed under the Apache License 2.0. Modifications Copyright 2024-2026 Bill Lin.
