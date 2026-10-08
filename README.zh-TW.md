@@ -620,25 +620,25 @@ class MyServiceClient(
 
 ### 5. 注解執行順序
 
-注解的執行順序是**最外層優先**（程式碼中寫在最前面的注解是 AOP Proxy 最外層，最先執行）：
-
-```kotlin
-// 這個順序：
-@CircuitBreaker(name = "x")   // 最外層 — 最先執行
-@Retry(name = "x")            // 中間層
-@Bulkhead(name = "x")         // 最內層 — 最後執行（最靠近實際呼叫）
-fun myMethod(): String { ... }
-```
-
-大多數場景的建議順序：
+注解在**程式碼中的書寫順序不影響執行順序**。Resilience4j 的 Spring aspect 永遠依固定順序套用（最外層在前）：
 
 ```
-@CircuitBreaker → @Bulkhead → @TimeLimiter → @Retry → @RateLimiter → 實際呼叫
+Retry ( CircuitBreaker ( RateLimiter ( TimeLimiter ( Bulkhead ( 實際呼叫 ) ) ) ) )
+```
+
+要改變順序，需設定 aspect order 屬性（數值越大、優先權越高、越外層），或改用函式式 `Decorators` / Reactor operator 寫法：
+
+```yaml
+resilience4j:
+  retry:
+    retryAspectOrder: 2
+  circuitbreaker:
+    circuitBreakerAspectOrder: 1
 ```
 
 **為什麼順序重要：**
-- `@Retry` 在 `@CircuitBreaker` 內層 → 每次 retry 都算斷路器滑動視窗裡的一次失敗記錄，一個邏輯操作可能觸發多次失敗計數。
-- `@Retry` 在 `@CircuitBreaker` 外層 → 若斷路器在 retry 中途開路，整個 retry 立即中止，對大多數場景更直觀。
+- 預設順序下 `@Retry` 包住 `@CircuitBreaker` → 每次 retry 都會記入斷路器的滑動視窗。呼叫一次 `/basic/failure`（共 3 次嘗試）會記錄 3 次失敗。
+- 斷路器開路後，下一次嘗試直接拋出 `CallNotPermittedException`；它不在 `retryExceptions` 內，因此 retry 隨即停止。
 
 ### 6. Fallback Method 規則
 

@@ -621,25 +621,25 @@ class MyServiceClient(
 
 ### 5. Annotation Ordering Rules
 
-The annotation execution order is **outermost first** (the annotation listed first in source code is outermost in the AOP proxy stack):
-
-```kotlin
-// This order:
-@CircuitBreaker(name = "x")   // outermost — executed first
-@Retry(name = "x")            // middle
-@Bulkhead(name = "x")         // innermost — executed last (closest to actual call)
-fun myMethod(): String { ... }
-```
-
-Recommended order for most cases:
+The order in which annotations are **written in source code does not matter**. Resilience4j's Spring aspects always apply in a fixed order (outermost first):
 
 ```
-@CircuitBreaker → @Bulkhead → @TimeLimiter → @Retry → @RateLimiter → actual call
+Retry ( CircuitBreaker ( RateLimiter ( TimeLimiter ( Bulkhead ( actual call ) ) ) ) )
+```
+
+To change it, set aspect-order properties (higher value = higher priority = applied further out), or use the functional `Decorators` / Reactor operator style instead:
+
+```yaml
+resilience4j:
+  retry:
+    retryAspectOrder: 2
+  circuitbreaker:
+    circuitBreakerAspectOrder: 1
 ```
 
 **Why it matters:**
-- `@Retry` inside `@CircuitBreaker` → each retry attempt counts toward the circuit breaker's failure window. One logical operation can trigger multiple failure records.
-- `@Retry` outside `@CircuitBreaker` → if the circuit opens mid-retry, the retry itself is interrupted. Cleaner for most cases.
+- With the default order, `@Retry` wraps `@CircuitBreaker` → every retry attempt is recorded in the circuit breaker's sliding window. One logical call to `/basic/failure` (3 attempts) records 3 failures.
+- Once the circuit opens, the next attempt fails fast with `CallNotPermittedException`; it is not in `retryExceptions`, so retry stops there.
 
 ### 6. Fallback Method Rules
 
